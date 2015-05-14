@@ -45,7 +45,7 @@ prod$fulldate = as.Date(prod$fulldate, format="%m/%d/%Y")
 # convert tube to a unique number
 tubecrds$tube = (tubecrds$ring - 1)*12 + tubecrds$tube
 # drop dead tube 15 and unneeded ring column
-tubecrds = tubecrds[tubecrds$tube != 15, c('tube','tube.x','tube.y')]
+tubecrds = tubecrds[tubecrds$tube != 15, c('tube','tube.east','tube.north')]
 head(tubecrds)
 
 # merge tube coords with productivity ------------------------------------------
@@ -56,39 +56,34 @@ dim(prod)
 
 # average productivity at the tube scale --------------------------------------
 
-prod_avg = aggregate(prod[ , c('root.len.prod', 'root.len.mort', 'root.len.stand',
+prod_agg = aggregate(prod[ , c('root.len.prod', 'root.len.mort', 'root.len.stand',
                                'rhiz.len.prod', 'rhiz.len.mort', 'rhiz.len.stand',
-                               'myc.prod', 'myc.mort', 'myc.stand', 'tube.x', 'tube.y')], 
-                     by=list(tube=prod$tube, session=prod$session, 
-                             ring=prod$ring, block=prod$block,
-                             fulldate=prod$fulldate),
+                               'myc.prod', 'myc.mort', 'myc.stand', 'tube.east',
+                               'tube.north')], 
+                     by=list(tube=prod$tube, session=prod$session),
                      mean, na.rm=T)
+# add back the metadata pertaining to the experiment
+prod_agg = data.frame(prod_agg, ring=NA, block=NA, co2treat=NA, ntreat=NA)
+for(i in 1:nrow(prod_agg)) {
+    prod_agg$ring[i] = prod$ring[prod$tube == prod_agg$tube[i] &
+                                 prod$session == prod_agg$session[i]][1]
+    prod_agg$ntreat[i] = prod$ntreat[prod$tube == prod_agg$tube[i] &
+                                     prod$session == prod_agg$session[i]][1]
+    prod_agg$co2treat[i] = prod$co2treat[prod$tube == prod_agg$tube[i] &
+                                         prod$session == prod_agg$session[i]][1]
+    prod_agg$block[i] = prod$block[prod$tube == prod_agg$tube[i] &
+                                   prod$session == prod_agg$session[i]][1]
+}
 
-head(prod_avg)
-dim(prod_avg)
+
+head(prod_agg)
+dim(prod_agg)
+
+prod = prod_agg
 
 # drop records without spatial coordinates
-prod_avg = subset(prod_avg, subset=!is.na(tube.x))
+prod = subset(prod, subset=!is.na(tube.east))
 
-# explore geographic patterns --------------------------------------------
-
-# for time being adjust spatial coords to allow for ring differences
-
-x = (prod_avg$ring - 1) * 1000 + prod_avg$tube.x
-y = (prod_avg$ring - 1) * 1000 + prod_avg$tube.y
-
-gdist = dist(cbind(x, y))
-gdist = ifelse(gdist > 25, 25, gdist)
-plot(density(gdist), ylim=c(0,.02))
-
-tdist = dist(prod_avg$fulldate)
-plot(density(tdist))
-
-root_mso = mso(rda(prod_avg$root.len.prod), prod_avg$fulldate)
-msoplot(root_mso)
-
-root_d = dist(prod_avg$root.len.prod)
-pdf('./figs/root_time.pdf')
-plot(tdist, root_d, type='n')
-lines(lowess(tdist, root_d), col='red', lwd=3)
-dev.off()
+# output data products --------------------------------------------------------
+write.csv(prod, file='./data/prod.csv', row.names=F)
+save(prod, file='./data/prod.Rdata')
