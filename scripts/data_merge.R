@@ -82,9 +82,18 @@ dim(demo_agg)
 
 demo = demo_agg
 
-# output data products --------------------------------------------------------
+# clean-up final product -----------------------------------------------------
 # convert co2treat to 0 = ambient ; 1 = elevated
 demo$co2treat = ifelse(demo$co2treat == 'AMBIENT', 0, 1) 
 # drop problematic session 62 when cameras changed
 demo = subset(demo, session != 62)
+# add a year, month
+demo$year = as.numeric(format(demo$fulldate, "%Y"))
+demo$mo = as.numeric(format(demo$fulldate, "%m"))
+# add a field for day of experiment starting from 1st of 1998
+demo$doe = demo$fulldate - as.Date("1998-01-01")
+# add a field for day of the year
+demo$doy = demo$fulldate - as.Date(paste0(demo$year, "-01-01"))
+
+# output data products --------------------------------------------------------
 write.csv(demo, file='./data/demo_root_rhiz_myco_avg_across_frames.csv', row.names=F)
