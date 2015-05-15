@@ -35,12 +35,12 @@ myc_fields = c('tube', 'frame', 'session', 'fulldate', 'julian1990', 'ring',
                'myc.stand')
 myc = myc_productivity[ , myc_fields]
 
-prod = merge(root, rhiz, all=T)
-prod = merge(prod, myc, all=T)
-head(prod)
+demo = merge(root, rhiz, all=T)
+demo = merge(demo, myc, all=T)
+head(demo)
 
 # convert fulldate to a date string
-prod$fulldate = as.Date(prod$fulldate, format="%m/%d/%Y")
+demo$fulldate = as.Date(demo$fulldate, format="%m/%d/%Y")
 
 # convert tube to a unique number
 tubecrds$tube = (tubecrds$ring - 1)*12 + tubecrds$tube
@@ -48,42 +48,41 @@ tubecrds$tube = (tubecrds$ring - 1)*12 + tubecrds$tube
 tubecrds = tubecrds[tubecrds$tube != 15, c('tube','tube.east','tube.north')]
 head(tubecrds)
 
-# merge tube coords with productivity ------------------------------------------
+# merge tube coords with demography ------------------------------------------
 
-prod = merge(prod, tubecrds, by.x = c('tube'), by.y = c('tube'), all=TRUE)
-head(prod)
-dim(prod)
+demo = merge(demo, tubecrds, by.x = c('tube'), by.y = c('tube'), all=TRUE)
+head(demo)
+dim(demo)
 
-# average productivity at the tube scale --------------------------------------
+# average demography at the tube scale --------------------------------------
 
-prod_agg = aggregate(prod[ , c('root.len.prod', 'root.len.mort', 'root.len.stand',
+demo_agg = aggregate(demo[ , c('root.len.prod', 'root.len.mort', 'root.len.stand',
                                'rhiz.len.prod', 'rhiz.len.mort', 'rhiz.len.stand',
                                'myc.prod', 'myc.mort', 'myc.stand', 'tube.east',
                                'tube.north')], 
-                     by=list(tube=prod$tube, session=prod$session),
+                     by=list(tube=demo$tube, session=demo$session),
                      mean, na.rm=T)
 # add back the metadata pertaining to the experiment
-prod_agg = data.frame(prod_agg, ring=NA, block=NA, co2treat=NA, ntreat=NA)
-for(i in 1:nrow(prod_agg)) {
-    prod_agg$ring[i] = prod$ring[prod$tube == prod_agg$tube[i] &
-                                 prod$session == prod_agg$session[i]][1]
-    prod_agg$ntreat[i] = prod$ntreat[prod$tube == prod_agg$tube[i] &
-                                     prod$session == prod_agg$session[i]][1]
-    prod_agg$co2treat[i] = prod$co2treat[prod$tube == prod_agg$tube[i] &
-                                         prod$session == prod_agg$session[i]][1]
-    prod_agg$block[i] = prod$block[prod$tube == prod_agg$tube[i] &
-                                   prod$session == prod_agg$session[i]][1]
+fields = c('ring', 'block', 'co2treat', 'ntreat', 'fulldate')
+nfields = length(fields)
+col_index = ncol(demo_agg) + 1
+demo_agg = data.frame(demo_agg, matrix(NA, nrow=nrow(demo_agg), ncol=nfields))
+names(demo_agg) = c(names(demo_agg)[1:(col_index - 1)], fields)
+class(demo_agg$fulldate) = "Date"
+
+for(i in 1:nrow(demo_agg)) {
+    row_index = which(demo$tube == demo_agg$tube[i] & 
+                      demo$session == demo_agg$session[i])[1]
+    demo_agg[i, col_index:ncol(demo_agg)] = demo[row_index, fields]
 }
 
 
-head(prod_agg)
-dim(prod_agg)
+head(demo_agg)
+dim(demo_agg)
 
-prod = prod_agg
-
-# drop records without spatial coordinates
-prod = subset(prod, subset=!is.na(tube.east))
+demo = demo_agg
 
 # output data products --------------------------------------------------------
-write.csv(prod, file='./data/prod.csv', row.names=F)
-save(prod, file='./data/prod.Rdata')
+# convert co2treat to 0 = ambient ; 1 = elevated
+demo$co2treat = ifelse(demo$co2treat == 'AMBIENT', 0, 1) 
+write.csv(demo, file='./data/demo_root_rhiz_myco_avg_across_frames.csv', row.names=F)
