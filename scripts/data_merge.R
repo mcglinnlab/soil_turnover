@@ -85,4 +85,6 @@ demo = demo_agg
 # output data products --------------------------------------------------------
 # convert co2treat to 0 = ambient ; 1 = elevated
 demo$co2treat = ifelse(demo$co2treat == 'AMBIENT', 0, 1) 
+# drop problematic session 62 when cameras changed
+demo = subset(demo, session != 62)
 write.csv(demo, file='./data/demo_root_rhiz_myco_avg_across_frames.csv', row.names=F)
